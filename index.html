@@ -1,0 +1,615 @@
+<!doctype html>
+<html lang="de">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Watchlist</title>
+
+    <style>
+        /* ===== GLOBAL ===== */
+        :root{
+            --bg:#f5f5f5; --text:#222; --card:#fff;
+            --border:#ddd; --muted:#777;
+            --accent:#c49c68; --accent-dark:#8b6a3e;
+            --plus-bg:rgba(0,0,0,.05);
+            --plus-hover:rgba(0,0,0,.12);
+            --star-filled:#ffd43b;
+            --star-empty:#aaa;
+        }
+        body{
+            margin:0; font-family:system-ui; background:var(--bg);
+            display:flex; flex-direction:column; min-height:100vh;
+        }
+
+        /* ===== TOPBAR ===== */
+        header{
+            background:var(--accent);
+            color:#000;
+            padding:.6rem 1rem;
+            box-shadow:0 2px 6px rgba(0,0,0,.15);
+            position:sticky; top:0; z-index:50;
+        }
+        .top{
+            display:flex; align-items:center; gap:12px;
+            max-width:1200px; margin:auto;
+        }
+        .icon-btn{
+            width:40px; height:40px; border:none; background:transparent;
+            display:flex; align-items:center; justify-content:center;
+            border-radius:8px; cursor:pointer; transition:.2s;
+        }
+        .icon-btn:hover{background:rgba(0,0,0,.12);}
+        .brand{flex:1; text-align:center; display:flex; gap:.4rem; justify-content:center;}
+        .brand .root{opacity:.5; font-size:.9rem;}
+        .brand .sep{font-weight:900;}
+        .brand .list{font-weight:900; font-size:1.2rem;}
+
+        /* ===== SIDEBAR ===== */
+        #backdrop{
+            position:fixed; inset:0; background:rgba(0,0,0,.4);
+            opacity:0; pointer-events:none; transition:.2s; z-index:40;
+        }
+        #backdrop.open{opacity:1; pointer-events:auto;}
+
+        #sidebar{
+            position:fixed; top:0; left:0; bottom:0;
+            width:300px; background:var(--card);
+            box-shadow:4px 0 15px rgba(0,0,0,.25);
+            transform:translateX(-100%);
+            transition:.28s cubic-bezier(.22,.61,.36,1);
+            z-index:60; display:flex; flex-direction:column;
+        }
+        #sidebar.open{transform:translateX(0);}
+
+        .side-head{
+            padding:14px; border-bottom:1px solid var(--border);
+            display:flex; align-items:center;
+        }
+        .side-body{
+            padding:14px; overflow:auto; display:flex; flex-direction:column; gap:12px;
+        }
+        .side-plus{
+            height:40px; background:var(--plus-bg);
+            border:2px dashed var(--border); border-radius:10px;
+            display:grid; place-items:center; font-size:20px; font-weight:900;
+            cursor:pointer; transition:.2s;
+        }
+        .side-plus:hover{background:var(--plus-hover);}
+
+        .list-box{
+            display:grid; grid-template-columns:50px 1fr;
+            gap:10px; padding:10px; background:var(--card);
+            border:1px solid var(--border); border-radius:10px;
+            cursor:pointer; transition:.2s;
+        }
+        .list-box:hover{background:rgba(0,0,0,.06);}
+        .list-box.selected{
+            border-color:var(--accent-dark);
+            box-shadow:0 0 0 2px inset rgba(0,0,0,.15);
+        }
+        .list-thumb{
+            width:50px;height:50px;border-radius:8px;overflow:hidden;
+            display:grid;place-items:center;background:#eee;font-weight:900;
+        }
+        .list-thumb img{width:100%;height:100%;object-fit:cover;}
+
+        .list-name{font-weight:800;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+        .list-desc{margin:3px 0 0;font-size:.85rem;color:var(--muted);}
+
+        /* ===== MAIN ===== */
+        main{flex:1;max-width:1200px;width:100%;margin:auto;padding:1rem;}
+        .plus-main{
+            width:100%; max-width:700px; height:60px;
+            margin:1rem auto; display:grid; place-items:center;
+            background:var(--plus-bg); border:2px dashed var(--border);
+            border-radius:12px; font-size:32px; font-weight:900; cursor:pointer;
+        }
+        .plus-main:hover{background:var(--plus-hover);}
+
+        .item-list{display:flex;flex-direction:column;gap:14px;margin-top:1rem;}
+        .item{
+            display:grid; grid-template-columns:36px 52px 1fr auto;
+            gap:12px; padding:10px; background:var(--card);
+            border:1px solid var(--border); border-radius:12px;
+        }
+        .item img{width:100%;height:100%;object-fit:cover;border-radius:10px;}
+        .item-num{text-align:center;font-weight:900;}
+        .item-name{font-weight:900;margin:0;}
+        .item-cats{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;}
+        .cat{background:rgba(0,0,0,.07);padding:4px 6px;border-radius:6px;font-size:.85rem;}
+        .stars span{font-size:1.2rem;}
+        .star-empty{color:var(--star-empty);}
+
+        /* ===== MODALS ===== */
+        .modal-bg{
+            position:fixed; inset:0; background:rgba(0,0,0,.4);
+            display:none; z-index:100; align-items:center; justify-content:center;
+        }
+        .modal-bg.open{display:flex;}
+        .modal{
+            width:min(560px,90%); max-height:90vh; background:var(--card);
+            border-radius:14px; border:1px solid var(--border);
+            display:flex;flex-direction:column;
+        }
+        .modal-header{
+            padding:12px 16px; display:flex;justify-content:space-between;
+            border-bottom:1px solid var(--border);
+        }
+        .modal-body{
+            padding:16px; overflow:auto; display:flex;flex-direction:column;gap:14px;
+        }
+        .modal-footer{
+            padding:12px 16px; display:flex;justify-content:flex-end;gap:10px;
+            border-top:1px solid var(--border);
+        }
+        .field{display:flex;flex-direction:column;gap:6px;}
+        .input,.textarea{
+            padding:10px;border:1px solid var(--border);border-radius:10px;
+            background:transparent;color:var(--text);
+        }
+        .textarea{min-height:80px;resize:vertical;}
+        .thumb{
+            width:70px;height:70px;background:#eee;border-radius:12px;
+            display:grid;place-items:center;overflow:hidden;font-size:24px;font-weight:900;
+        }
+        .thumb img{width:100%;height:100%;object-fit:cover;}
+        .check-line{display:flex;align-items:center;gap:10px;}
+        .drag{display:none;}
+        .drag.active{display:inline-block;font-size:1.2rem;opacity:.5;}
+    </style>
+</head>
+
+<body>
+
+<!-- ===== SIDEBAR BACKDROP ===== -->
+<div id="backdrop"></div>
+
+<!-- ===== SIDEBAR ===== -->
+<div id="sidebar">
+    <div class="side-head">
+        <strong>Menü</strong>
+        <div style="flex:1"></div>
+        <button class="icon-btn" id="closeSidebar">✖</button>
+    </div>
+    <div class="side-body">
+        <button class="side-plus" id="addListBtn">+</button>
+        <div id="listCollection"></div>
+    </div>
+</div>
+
+<!-- ===== TOPBAR ===== -->
+<header>
+    <div class="top">
+        <button class="icon-btn" id="menuToggle">☰</button>
+        <div class="brand">
+            <span class="root">watchlist</span>
+            <span class="sep" id="brandSep" style="display:none;">»</span>
+            <span class="list" id="brandList" style="display:none;"></span>
+        </div>
+        <div class="icon-slot">ICON</div>
+    </div>
+</header>
+
+<!-- ===== MAIN ===== -->
+<main>
+    <div id="content"></div>
+</main>
+
+<!-- ===== MODAL: LISTE ===== -->
+<div class="modal-bg" id="listModalBg">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>Neue Liste</h3>
+            <button class="icon-btn" id="closeListModal">✖</button>
+        </div>
+        <div class="modal-body">
+            <div class="field">
+                <label>Name *</label>
+                <input id="listName" class="input">
+            </div>
+            <div class="field">
+                <label>Beschreibung</label>
+                <textarea id="listDesc" class="textarea"></textarea>
+            </div>
+            <div class="field">
+                <label>Bild</label>
+                <div style="display:flex;gap:12px;align-items:center;">
+                    <div class="thumb" id="listThumb">?</div>
+                    <input id="listImg" type="file" accept="image/*">
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn" id="cancelList">Abbrechen</button>
+            <button class="btn primary" id="saveList">Speichern</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== MODAL: EINTRAG ===== -->
+<div class="modal-bg" id="entryModalBg">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>Neuer Eintrag</h3>
+            <button class="icon-btn" id="closeEntryModal">✖</button>
+        </div>
+
+        <div class="modal-body">
+
+            <div class="field">
+                <label>Bild *</label>
+                <div style="display:flex;gap:12px;align-items:center;">
+                    <div class="thumb" id="entryThumb">?</div>
+                    <input id="entryImg" type="file" accept="image/*">
+                </div>
+            </div>
+
+            <div class="field">
+                <label>Name *</label>
+                <input id="entryName" class="input">
+            </div>
+
+            <div class="field">
+                <label>Kategorien</label>
+
+                <div class="check-line">
+                    <input id="chkStaffel" type="checkbox">
+                    <label>Staffel</label>
+                    <span id="dragStaffel" class="drag">≡</span>
+                </div>
+                <input id="valStaffel" class="input" type="number" min="1" value="1" style="display:none;">
+
+                <div class="check-line">
+                    <input id="chkFolge" type="checkbox">
+                    <label>Folge</label>
+                    <span id="dragFolge" class="drag">≡</span>
+                </div>
+                <input id="valFolge" class="input" type="number" min="1" value="1" style="display:none;">
+
+                <div class="check-line">
+                    <input id="chkProg" type="checkbox">
+                    <label>Fortschritt (%)</label>
+                    <span id="dragProg" class="drag">≡</span>
+                </div>
+                <input id="valProg" class="input" type="number" min="0" max="100" value="0" style="display:none;">
+
+                <div class="check-line">
+                    <input id="chkScore" type="checkbox">
+                    <label>Score</label>
+                    <span id="dragScore" class="drag">≡</span>
+                </div>
+
+                <div id="starWrap" style="display:none;">
+                    <span data-s="1" class="star-empty">☆</span>
+                    <span data-s="2" class="star-empty">☆</span>
+                    <span data-s="3" class="star-empty">☆</span>
+                    <span data-s="4" class="star-empty">☆</span>
+                    <span data-s="5" class="star-empty">☆</span>
+                </div>
+
+            </div>
+        </div>
+
+        <div class="modal-footer">
+            <button class="btn" id="cancelEntry">Abbrechen</button>
+            <button class="btn primary" id="saveEntry">Speichern</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    /* ==== GLOBAL STATE ==== */
+    let lists=[];
+    let selected=null;
+
+    /* ==== INIT ==== */
+    loadState();
+    renderSidebar();
+    renderMain();
+    updateTopbar();
+
+    /* ==== SIDEBAR ==== */
+    const sidebar=document.getElementById("sidebar");
+    const backdrop=document.getElementById("backdrop");
+
+    document.getElementById("menuToggle").onclick = ()=>openSidebar();
+    document.getElementById("closeSidebar").onclick = closeSidebar;
+    backdrop.onclick = closeSidebar;
+
+    function openSidebar(){
+        sidebar.classList.add("open");
+        backdrop.classList.add("open");
+    }
+    function closeSidebar(){
+        sidebar.classList.remove("open");
+        backdrop.classList.remove("open");
+    }
+
+    /* ==== STORAGE ==== */
+    function saveState(){
+        localStorage.setItem("lists",JSON.stringify(lists));
+        localStorage.setItem("selected",selected);
+    }
+    function loadState(){
+        lists=JSON.parse(localStorage.getItem("lists")||"[]");
+        selected=localStorage.getItem("selected");
+    }
+
+    /* ==== RENDER SIDEBAR ==== */
+    function renderSidebar(){
+        const box=document.getElementById("listCollection");
+        box.innerHTML="";
+
+        lists.forEach(l=>{
+            const div=document.createElement("div");
+            div.className="list-box";
+            if(l.id===selected) div.classList.add("selected");
+
+            const th=document.createElement("div");
+            th.className="list-thumb";
+            if(l.img){
+                const i=document.createElement("img"); i.src=l.img; th.appendChild(i);
+            } else th.textContent=l.name[0].toUpperCase();
+
+            const info=document.createElement("div");
+            const name=document.createElement("p");
+            name.className="list-name"; name.textContent=l.name;
+            info.appendChild(name);
+
+            if(l.desc){
+                const d=document.createElement("p");
+                d.className="list-desc"; d.textContent=l.desc;
+                info.appendChild(d);
+            }
+
+            div.appendChild(th);
+            div.appendChild(info);
+
+            div.onclick=()=>{
+                selected=l.id;
+                saveState();
+                renderSidebar();
+                renderMain();
+                updateTopbar();
+                closeSidebar();
+            };
+
+            box.appendChild(div);
+        });
+    }
+
+    /* ==== TOPBAR ==== */
+    function updateTopbar(){
+        const root=document.querySelector(".brand .root");
+        const sep=document.getElementById("brandSep");
+        const name=document.getElementById("brandList");
+
+        const l=lists.find(x=>x.id===selected);
+        if(!l){
+            sep.style.display="none";
+            name.style.display="none";
+            return;
+        }
+        sep.style.display="";
+        name.style.display="";
+        name.textContent=l.name;
+    }
+
+    /* ==== MAIN ==== */
+    function renderMain(){
+        const cont=document.getElementById("content");
+        cont.innerHTML="";
+        const l=lists.find(x=>x.id===selected);
+
+        if(!l){
+            cont.innerHTML="<p>Keine Liste ausgewählt.</p>";
+            return;
+        }
+
+        const plus=document.createElement("div");
+        plus.className="plus-main";
+        plus.textContent="+";
+        plus.onclick=openEntryModal;
+        cont.appendChild(plus);
+
+        const wrap=document.createElement("div");
+        wrap.className="item-list";
+
+        (l.items||[]).forEach((it,i)=>{
+            const d=document.createElement("div");
+            d.className="item";
+
+            const num=document.createElement("div");
+            num.className="item-num"; num.textContent=i+1;
+
+            const th=document.createElement("div");
+            th.innerHTML=`<img src='${it.img}'>`;
+
+            const mid=document.createElement("div");
+            const name=document.createElement("p");
+            name.className="item-name"; name.textContent=it.name;
+            mid.appendChild(name);
+
+            const cats=document.createElement("div");
+            cats.className="item-cats";
+
+            it.order.forEach(cat=>{
+                if(cat==="staffel"){
+                    const c=document.createElement("div");
+                    c.className="cat"; c.textContent="S"+it.staffel; cats.appendChild(c);
+                }
+                if(cat==="folge"){
+                    const c=document.createElement("div");
+                    c.className="cat"; c.textContent="F"+it.folge; cats.appendChild(c);
+                }
+                if(cat==="prog"){
+                    const c=document.createElement("div");
+                    c.className="cat"; c.textContent=it.prog+"%"; cats.appendChild(c);
+                }
+                if(cat==="score"){
+                    const c=document.createElement("div");
+                    c.className="cat stars";
+                    for(let s=1;s<=5;s++){
+                        const st=document.createElement("span");
+                        st.textContent=s<=it.score?"★":"☆";
+                        if(s>it.score) st.classList.add("star-empty");
+                        c.appendChild(st);
+                    }
+                    cats.appendChild(c);
+                }
+            });
+
+            mid.appendChild(cats);
+
+            const edit=document.createElement("div");
+            edit.className="edit-btn"; edit.textContent="✎";
+
+            d.appendChild(num);
+            d.appendChild(th);
+            d.appendChild(mid);
+            d.appendChild(edit);
+
+            wrap.appendChild(d);
+        });
+
+        cont.appendChild(wrap);
+    }
+
+    /* ==== LIST MODAL ==== */
+    const listBg=document.getElementById("listModalBg");
+    document.getElementById("addListBtn").onclick=openListModal;
+    document.getElementById("closeListModal").onclick=closeListModal;
+    document.getElementById("cancelList").onclick=closeListModal;
+
+    function openListModal(){
+        listBg.classList.add("open");
+        document.getElementById("listThumb").textContent="?";
+        document.getElementById("listName").value="";
+        document.getElementById("listDesc").value="";
+        document.getElementById("listImg").value="";
+    }
+    function closeListModal(){
+        listBg.classList.remove("open");
+    }
+
+    document.getElementById("listImg").onchange=()=>{
+        const f=document.getElementById("listImg").files[0];
+        if(!f){document.getElementById("listThumb").textContent="?";return;}
+        const fr=new FileReader();
+        fr.onload=()=>document.getElementById("listThumb").innerHTML=`<img src='${fr.result}'>`;
+        fr.readAsDataURL(f);
+    };
+
+    document.getElementById("saveList").onclick=()=>{
+        const n=document.getElementById("listName").value.trim();
+        if(!n){alert("Name fehlt.");return;}
+
+        const d=document.getElementById("listDesc").value.trim();
+        const f=document.getElementById("listImg").files[0];
+
+        if(f){
+            const fr=new FileReader();
+            fr.onload=()=>addList(n,d,fr.result);
+            fr.readAsDataURL(f);
+        } else addList(n,d,null);
+    };
+
+    function addList(name,desc,img){
+        lists.push({id:"l"+Date.now(),name,desc,img,items:[]});
+        selected=lists[lists.length-1].id;
+        saveState(); renderSidebar(); renderMain(); updateTopbar(); closeListModal();
+    }
+
+    /* ==== ENTRY MODAL ==== */
+    const entryBg=document.getElementById("entryModalBg");
+    document.getElementById("closeEntryModal").onclick=closeEntryModal;
+    document.getElementById("cancelEntry").onclick=closeEntryModal;
+
+    function openEntryModal(){
+        entryBg.classList.add("open");
+        document.getElementById("entryThumb").textContent="?";
+        document.getElementById("entryImg").value="";
+        document.getElementById("entryName").value="";
+        chkStaffel.checked=false;chkFolge.checked=false;chkProg.checked=false;chkScore.checked=false;
+        valStaffel.style.display="none";valFolge.style.display="none";valProg.style.display="none";starWrap.style.display="none";
+        dragStaffel.classList.remove("active");dragFolge.classList.remove("active");dragProg.classList.remove("active");dragScore.classList.remove("active");
+        tempScore=0; [...starWrap.children].forEach(s=>s.textContent="☆");
+    }
+    function closeEntryModal(){
+        entryBg.classList.remove("open");
+    }
+
+    entryImg.onchange=()=>{
+        const f=entryImg.files[0];
+        if(!f){entryThumb.textContent="?";return;}
+        const fr=new FileReader();
+        fr.onload=()=>entryThumb.innerHTML=`<img src='${fr.result}'>`;
+        fr.readAsDataURL(f);
+    };
+
+    /* checkbox toggles */
+    chkStaffel.onchange=()=>toggleCat(chkStaffel,valStaffel,dragStaffel);
+    chkFolge.onchange =()=>toggleCat(chkFolge,valFolge ,dragFolge);
+    chkProg.onchange  =()=>toggleCat(chkProg ,valProg  ,dragProg );
+    chkScore.onchange =()=>{
+        starWrap.style.display=chkScore.checked?"":"none";
+        dragScore.classList.toggle("active",chkScore.checked);
+    };
+
+    function toggleCat(chk,field,drag){
+        field.style.display=chk.checked?"":"none";
+        drag.classList.toggle("active",chk.checked);
+    }
+
+    /* score */
+    let tempScore=0;
+    [...document.querySelectorAll("#starWrap span")].forEach(el=>{
+        el.onclick=()=>{
+            tempScore=parseInt(el.dataset.s);
+            [...document.querySelectorAll("#starWrap span")].forEach(st=>{
+                const v=parseInt(st.dataset.s);
+                st.textContent=v<=tempScore?"★":"☆";
+                if(v>tempScore) st.classList.add("star-empty");
+                else st.classList.remove("star-empty");
+            });
+        };
+    });
+
+    /* SAVE ENTRY */
+    document.getElementById("saveEntry").onclick=()=>{
+        const l=lists.find(x=>x.id===selected);
+        if(!l)return;
+        if(!entryImg.files[0])return alert("Bild fehlt");
+        if(!entryName.value.trim())return alert("Name fehlt");
+
+        const f=entryImg.files[0];
+        const fr=new FileReader();
+        fr.onload=()=>{
+            const order=[];
+            if(chkStaffel.checked)order.push("staffel");
+            if(chkFolge.checked)order.push("folge");
+            if(chkProg.checked)order.push("prog");
+            if(chkScore.checked)order.push("score");
+
+            const item={
+                id:"i"+Date.now(),
+                img:fr.result,
+                name:entryName.value.trim(),
+                staffel:chkStaffel.checked?parseInt(valStaffel.value):null,
+                folge:chkFolge.checked?parseInt(valFolge.value):null,
+                prog:chkProg.checked?parseInt(valProg.value):null,
+                score:chkScore.checked?tempScore:null,
+                order
+            };
+
+            l.items.push(item);
+            saveState();
+            renderMain();
+            closeEntryModal();
+        };
+        fr.readAsDataURL(f);
+    };
+
+</script>
+</body>
+</html>
